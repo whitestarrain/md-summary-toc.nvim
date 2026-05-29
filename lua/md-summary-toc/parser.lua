@@ -42,7 +42,7 @@ local function build_tree(lines)
 
   local in_comment = false
 
-  for _, line in ipairs(lines) do
+  for i, line in ipairs(lines) do
     if in_comment then
       if is_html_comment_end(line) then
         in_comment = false
@@ -56,7 +56,7 @@ local function build_tree(lines)
       if heading_level then
         local title = vim.trim(line):match("^#+%s+(.+)")
         local section_depth = heading_level - 1
-        local node = { type = "section", title = title, path = nil, depth = section_depth, children = {} }
+        local node = { type = "section", title = title, path = nil, depth = section_depth, linenr = i, children = {} }
 
         while #stack >= 2 and stack[#stack].type ~= "section" do
           table.remove(stack)

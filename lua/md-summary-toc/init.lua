@@ -7,6 +7,7 @@ local defaults = {
   width = nil,
   position = "right",
   section_hl = "mkdHeading",
+  selected_hl = "Search",
   icons = {
     folder = "  ",
     file = "󰈙 ",

@@ -3,11 +3,13 @@ local parser = require("md-summary-toc.parser")
 local M = {}
 
 local ns_id = vim.api.nvim_create_namespace("MdSummaryToc")
+local sel_ns_id = vim.api.nvim_create_namespace("MdSummaryTocSelect")
 
 local config = {
   width = nil,
   position = "right",
   section_hl = "mkdHeading",
+  selected_hl = "Search",
   icons = {
     folder = "  ",
     file = "󰈙 ",
@@ -24,6 +26,7 @@ local state = {
   node_by_line = {},
   prev_win = nil,
   autocmd_id = nil,
+  last_selected_lnum = nil,
 }
 
 function M.set_config(opts)
@@ -72,17 +75,34 @@ local function build_display_lines(nodes)
   return lines
 end
 
-local function jump_to_link(node, cmd)
-  if not node or not node.path or node.type ~= "link" then
+local function jump_to_node(node, cmd)
+  if not node then
     return
   end
-  local full = vim.fn.fnamemodify(state.base_dir .. "/" .. node.path, ":p")
-  if state.prev_win and vim.api.nvim_win_is_valid(state.prev_win) then
-    vim.api.nvim_set_current_win(state.prev_win)
-  else
-    vim.cmd("wincmd p")
+
+  local lnum = vim.api.nvim_win_get_cursor(0)[1]
+
+  if state.last_selected_lnum then
+    vim.api.nvim_buf_clear_namespace(state.buf, sel_ns_id, state.last_selected_lnum - 1, state.last_selected_lnum)
   end
-  vim.cmd(cmd .. " " .. vim.fn.fnameescape(full))
+  vim.api.nvim_buf_add_highlight(state.buf, sel_ns_id, config.selected_hl, lnum - 1, 0, -1)
+  state.last_selected_lnum = lnum
+
+  local target_win = state.prev_win and vim.api.nvim_win_is_valid(state.prev_win) and state.prev_win or nil
+  if not target_win then
+    vim.cmd("wincmd p")
+    target_win = vim.api.nvim_get_current_win()
+  else
+    vim.api.nvim_set_current_win(target_win)
+  end
+
+  if node.type == "section" and node.linenr then
+    vim.cmd(cmd .. " " .. vim.fn.fnameescape(state.filepath))
+    vim.api.nvim_win_set_cursor(target_win, { node.linenr, 0 })
+  elseif node.type == "link" and node.path then
+    local full = vim.fn.fnamemodify(state.base_dir .. "/" .. node.path, ":p")
+    vim.cmd(cmd .. " " .. vim.fn.fnameescape(full))
+  end
 end
 
 local function node_at_cursor()
@@ -103,22 +123,22 @@ local function set_buffer_mappings(buf)
   local opts = { noremap = true, silent = true, buffer = buf }
 
   vim.keymap.set("n", "<CR>", function()
-    jump_to_link(node_at_cursor(), "edit")
+    jump_to_node(node_at_cursor(), "edit")
   end, opts)
 
   vim.keymap.set("n", "q", close_or_quit, opts)
   vim.keymap.set("n", "<Esc>", close_or_quit, opts)
 
   vim.keymap.set("n", "o", function()
-    jump_to_link(node_at_cursor(), "split")
+    jump_to_node(node_at_cursor(), "split")
   end, opts)
 
   vim.keymap.set("n", "s", function()
-    jump_to_link(node_at_cursor(), "vsplit")
+    jump_to_node(node_at_cursor(), "vsplit")
   end, opts)
 
   vim.keymap.set("n", "t", function()
-    jump_to_link(node_at_cursor(), "tabedit")
+    jump_to_node(node_at_cursor(), "tabedit")
   end, opts)
 
   vim.keymap.set("n", "P", function()
@@ -228,7 +248,6 @@ function M.open(filepath)
   vim.wo[state.win].relativenumber = false
   vim.wo[state.win].signcolumn = "no"
   vim.wo[state.win].foldcolumn = "0"
-  vim.wo[state.win].cursorline = true
   vim.wo[state.win].winfixwidth = true
 
   set_buffer_mappings(state.buf)
