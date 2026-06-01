@@ -189,6 +189,21 @@ function M.open(filepath)
 
   local base_dir = vim.fn.fnamemodify(filepath, ":h")
 
+  local function filter_existing(nodes, base)
+    local result = {}
+    for _, node in ipairs(nodes) do
+      if node.type == "section" then
+        node.children = filter_existing(node.children, base)
+        table.insert(result, node)
+      elseif node.path and not node.path:find("^https?://") and vim.fn.filereadable(base .. "/" .. node.path) == 1 then
+        node.children = filter_existing(node.children, base)
+        table.insert(result, node)
+      end
+    end
+    return result
+  end
+  nodes = filter_existing(nodes, base_dir)
+
   if state.buf and vim.api.nvim_buf_is_valid(state.buf) then
     if state.win and vim.api.nvim_win_is_valid(state.win) then
       vim.api.nvim_win_close(state.win, true)
@@ -239,10 +254,10 @@ function M.open(filepath)
   end
 
   local width = config.width or math.min(30, math.floor(vim.o.columns * 0.3))
-  local position_cmd = config.position == "left" and "topleft" or "botright"
-  vim.cmd(position_cmd .. " " .. width .. "vnew")
-  state.win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(state.win, state.buf)
+  state.win = vim.api.nvim_open_win(state.buf, false, {
+    split = config.position == "left" and "left" or "right",
+    width = width,
+  })
 
   vim.wo[state.win].number = false
   vim.wo[state.win].relativenumber = false
