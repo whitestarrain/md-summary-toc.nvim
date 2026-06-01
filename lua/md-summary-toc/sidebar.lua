@@ -263,6 +263,7 @@ function M.open(filepath)
   vim.wo[state.win].relativenumber = false
   vim.wo[state.win].signcolumn = "no"
   vim.wo[state.win].foldcolumn = "0"
+  vim.wo[state.win].wrap = false
   vim.wo[state.win].winfixwidth = true
 
   set_buffer_mappings(state.buf)
